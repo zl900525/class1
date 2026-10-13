@@ -247,9 +247,9 @@ flowchart TB
 | `leave()` | 離開聊天室 | — |
 | `loadRecent()` | 取得最近 50 則訊息和它們的表情 | 訊息列表 |
 | `fetchMessages(ids)` | 取得被回覆、但不在這 50 則裡的原訊息 | 訊息列表（找不到的就不回傳） |
-| `sendMessage({ id, text, imageFile, replyTo })` | 送出訊息；有圖片時先上傳圖片，上傳過程中會回報進度（0～100%） | 成功；或失敗（畫面顯示 ⚠，重試時用同一個 `id` 再送一次） |
+| `sendMessage({ id, nickname, text, image, replyTo })` | 送出訊息；`image` 是已經壓縮好的圖片（壓縮在狀態管理裡做，兩個階段共用），上傳過程中會回報進度（0～100%） | 成功；或失敗（畫面顯示 ⚠，重試時用同一個 `id` 再送一次） |
 | `recall(messageId)` | 收回自己的訊息 | 成功；或失敗，並附上原因：`too_late`（超過 2 分鐘）、`not_owner`（不是自己的） |
-| `toggleReaction(messageId, emoji)` | 按表情，或取消已經按過的表情 | 成功或失敗 |
+| `toggleReaction(messageId, emoji, nickname)` | 按表情，或取消已經按過的表情 | 成功或失敗 |
 
 ### 5.3 聊天服務介面：會通知畫面的事件
 

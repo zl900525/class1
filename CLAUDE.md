@@ -4,6 +4,7 @@
 
 ## 開始工作前
 - 開始任何工作前，先讀 `docs/architecture.md`。需求原文在 `docs/requirements.md`。
+- 做畫面相關的工作前，也要讀 `docs/design.md`（顏色、字體、元件外觀）。
 
 ## 目前進度
 - 目前在**階段一**：只做前端，使用本機版聊天服務（`LocalChatService`），**還不接 Supabase**。
