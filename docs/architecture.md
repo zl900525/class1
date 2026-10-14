@@ -290,7 +290,7 @@ flowchart TB
 | nickname | 1～12 字，不能是保留字 |
 | text | 最多 500 字 |
 | image_path、thumb_path、image_width、image_height | 可以是空的 |
-| reply_to | 指向另一則訊息；原訊息被刪掉時自動變成空的 |
+| reply_to | 被回覆訊息的 id。刻意不設外鍵：原訊息被清理掉後，畫面才能顯示「原訊息已無法顯示」 |
 | created_at | 一律由伺服器填入目前時間，前端送來的值不採用 |
 | recalled_at | 只能透過 `recall_message` 函式修改 |
 | （整體規則） | 沒收回的訊息，文字和圖片至少要有一個 |
@@ -525,7 +525,7 @@ flowchart TD
 | **Publishable key**（公開金鑰；舊版介面叫 `anon` key） | `sb_publishable_…` | 自動產生，在 Supabase 後台 Project Settings → API Keys | 同上 | ✅ 可以。它本來就會出現在網頁裡，任何人打開瀏覽器的開發者工具都看得到。真正保護資料的是第 5.4 節的資料庫規則（RLS），不是這把金鑰 |
 | **Secret key**（祕密金鑰；舊版介面叫 `service_role` key） | `sb_secret_…` | 自動產生，在同一個頁面 | **只存在 Supabase 裡面**。清理用的 Edge Function 會自動拿到它，我們不用複製到任何地方 | ❌ **絕對不行**。這把鑰匙可以略過所有權限規則，拿到的人能讀、改、刪全部資料。前端完全不需要它 |
 | **Database password**（資料庫密碼） | 建專案時自己設定，或按「產生」 | 建立專案時 | 密碼管理器（例如瀏覽器內建的密碼管理器、1Password、Bitwarden） | ❌ 絕對不行。這個專案平常用不到，只有直接操作資料庫時才需要 |
-| **排程呼叫金鑰** | 自己產生的一串隨機文字 | 在 Supabase 後台的 Vault（加密保險箱）建立 | 只存在 Supabase Vault | ❌ 不行。用來確保只有我們自己的排程能叫清理功能執行 |
+| **排程呼叫金鑰**（`CLEANUP_SECRET`） | 自己產生的一串隨機文字 | 用指令產生 | 只存在 Supabase 裡：Edge Functions 的 Secrets，以及 Cron 排程的標頭 | ❌ 不行。用來確保只有我們自己的排程能叫清理功能執行。外流的話，最壞情況是別人提早觸發清理（只會刪 7 天前的訊息），換一組新的即可 |
 
 **不需要手動處理的：**
 - GitHub 自動部署用的權限：GitHub Actions 自己會提供，不用產生任何金鑰。
@@ -704,7 +704,7 @@ class1/
 2. Authentication → Sign In / Providers，開啟 **Anonymous sign-ins**。
 3. Authentication → Rate Limits，把匿名登入的上限調高（例如每小時 200 次）。
 4. SQL Editor 中，依序貼上 `supabase/migrations/` 裡的檔案並執行。這會建立資料表、權限規則、收回函式、Storage 倉庫，並開啟即時推送。
-5. 部署 `cleanup` Edge Function，並在 Integrations → Cron 設定每天凌晨 4 點執行一次。
+5. 用 Edge Functions 的網頁編輯器建立 `cleanup`（貼上 `supabase/functions/cleanup/index.ts`），關掉 JWT 驗證，在 Secrets 加入 `CLEANUP_SECRET`；再到 Integrations → Cron 設定每天台灣時間凌晨 4 點（UTC `0 20 * * *`）呼叫它，並帶上 `x-cleanup-secret` 標頭。
 6. 把 Project URL 和 Publishable key 填進 GitHub Variables（第 8.2 節），到 Actions 分頁重新執行一次部署。
 
 ---
