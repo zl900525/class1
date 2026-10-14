@@ -35,7 +35,7 @@ describe('buildTimeline', () => {
   });
 
   it('中間夾了進出提示就重新顯示代號', () => {
-    const notice: Notice = { id: 'n', kind: 'join', nickname: 'dog', at: t('10:00:05') };
+    const notice: Notice = { id: 'n', kind: 'join', nickname: 'dog', at: t('10:00:05'), after: null };
     const items = buildTimeline([msg('a', 'cat', t('10:00:00')), msg('b', 'cat', t('10:00:10'))], [notice], now);
     expect(items.map((i) => i.type)).toEqual(['date', 'message', 'notice', 'message']);
     const last = items[3];
@@ -50,6 +50,19 @@ describe('buildTimeline', () => {
     );
     const labels = items.flatMap((i) => (i.type === 'date' ? [i.label] : []));
     expect(labels).toEqual(['10 月 12 日', '今天']);
+  });
+
+  it('裝置時鐘比伺服器快時，提示還是排在它出現當下的最後一則訊息後面', () => {
+    // 提示出現時最後一則是 a；裝置時鐘快了 30 秒，所以提示的時間比之後才送來的 b 還晚
+    const notice: Notice = { id: 'n', kind: 'join', nickname: 'dog', at: t('10:00:40'), after: 'a' };
+    const items = buildTimeline([msg('a', 'cat', t('10:00:00')), msg('b', 'dog', t('10:00:20'))], [notice], now);
+    expect(items.map((i) => i.key)).toEqual(['date-2026-10-13', 'a', 'n', 'b']);
+  });
+
+  it('對應的訊息不見了（例如失敗訊息被刪掉），就改用時間排序', () => {
+    const notice: Notice = { id: 'n', kind: 'leave', nickname: 'dog', at: t('10:00:30'), after: 'gone' };
+    const items = buildTimeline([msg('a', 'cat', t('10:00:00')), msg('b', 'cat', t('10:01:00'))], [notice], now);
+    expect(items.map((i) => i.key)).toEqual(['date-2026-10-13', 'a', 'n', 'b']);
   });
 
   it('已收回的訊息變成收回提示', () => {

@@ -154,6 +154,17 @@ a:hover {
   border-radius: 10px;
 }
 
+.boot {
+  margin: 0;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  background: var(--join-bg);
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 700;
+}
+
 /* ---------- 進入畫面 ---------- */
 
 .join {

@@ -94,7 +94,13 @@ export class ChatStore {
         this.set({
           notices: [
             ...this.state.notices,
-            { id: crypto.randomUUID(), kind, nickname, at: new Date().toISOString() },
+            {
+              id: crypto.randomUUID(),
+              kind,
+              nickname,
+              at: new Date().toISOString(),
+              after: this.state.messages.at(-1)?.id ?? null,
+            },
           ],
         }),
     );
@@ -115,8 +121,10 @@ export class ChatStore {
       this.set({ screen: 'join', joinError: NICKNAME_ERROR_TEXT.taken });
     });
 
-    void service.getUserId().then((userId) =>
-      this.set({ userId, nickname: readSavedNickname(), screen: 'join' }),
+    // 取得匿名身分；失敗就先顯示進入畫面和錯誤訊息，按「進入」時會再試一次
+    void service.getUserId().then(
+      (userId) => this.set({ userId, nickname: readSavedNickname(), screen: 'join' }),
+      () => this.set({ nickname: readSavedNickname(), screen: 'join', joinError: NICKNAME_ERROR_TEXT.network }),
     );
   }
 
@@ -150,6 +158,13 @@ export class ChatStore {
 
     const nickname = normalizeNickname(raw);
     this.set({ joining: true, joinError: null, nickname });
+    if (!this.state.userId) {
+      try {
+        this.set({ userId: await this.service.getUserId() });
+      } catch {
+        return this.set({ joining: false, joinError: NICKNAME_ERROR_TEXT.network });
+      }
+    }
     this.tracker.reset(this.state.userId);
     this.expectInitialSync = true;
 

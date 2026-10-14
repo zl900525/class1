@@ -24,6 +24,11 @@ function Screens() {
 
   return (
     <>
+      {state.screen === 'loading' && (
+        <p className="boot" role="status">
+          連線中…
+        </p>
+      )}
       {state.screen === 'join' && <JoinScreen />}
       {state.screen === 'chat' && <ChatScreen />}
       {showDebug && <DebugPanel />}

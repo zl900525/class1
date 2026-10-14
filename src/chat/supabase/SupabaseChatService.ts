@@ -27,7 +27,6 @@ import { nicknameKey, normalizeNickname, validateNickname } from '../../lib/nick
 const CHANNEL = 'room:lobby';
 const BUCKET = 'chat-images';
 const FIRST_SYNC_WAIT_MS = 1500;
-const SIGN_IN_RETRY_MS = 3000;
 
 interface MessageRow {
   id: string;
@@ -57,14 +56,14 @@ const EXTENSIONS: Record<string, string> = {
   'image/webp': 'webp',
 };
 
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class SupabaseChatService implements ChatService {
   readonly kind = 'supabase' as const;
 
   private client: SupabaseClient;
   private handlers = new Map<ChatEventName, Set<(payload: never) => void>>();
-  private userIdPromise: Promise<string>;
+  private userId: string | null = null;
+  private signingIn: Promise<string> | null = null;
   private tabId = crypto.randomUUID();
   private channel: RealtimeChannel | null = null;
   private me: PresenceUser | null = null;
@@ -77,7 +76,6 @@ export class SupabaseChatService implements ChatService {
     private key: string,
   ) {
     this.client = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } });
-    this.userIdPromise = this.signIn();
     window.addEventListener('offline', () => this.setStatus('reconnecting'));
   }
 
@@ -102,31 +100,26 @@ export class SupabaseChatService implements ChatService {
 
   // ---- 匿名身分 ----
 
-  /** 這個瀏覽器已經有身分就沿用，沒有就匿名登入；失敗會一直重試 */
-  private async signIn(): Promise<string> {
-    for (;;) {
-      try {
-        const { data } = await this.client.auth.getSession();
-        if (data.session) return data.session.user.id;
-        const { data: created, error } = await this.client.auth.signInAnonymously();
-        if (created.user) return created.user.id;
-        console.error('匿名登入失敗', error);
-      } catch (error) {
-        console.error('匿名登入失敗', error);
-      }
-      await delay(SIGN_IN_RETRY_MS);
-    }
+  /** 這個瀏覽器已經有身分就沿用，沒有就匿名登入。失敗會回報錯誤，下次呼叫再試一次 */
+  getUserId(): Promise<string> {
+    if (this.userId) return Promise.resolve(this.userId);
+    this.signingIn ??= this.signIn().finally(() => (this.signingIn = null));
+    return this.signingIn;
   }
 
-  getUserId() {
-    return this.userIdPromise;
+  private async signIn(): Promise<string> {
+    const { data } = await this.client.auth.getSession();
+    if (data.session) return (this.userId = data.session.user.id);
+    const { data: created, error } = await this.client.auth.signInAnonymously();
+    if (!created.user) throw error ?? new Error('匿名登入失敗');
+    return (this.userId = created.user.id);
   }
 
   // ---- 進入、離開、線上名單 ----
 
   async join(raw: string): Promise<JoinResult> {
     if (validateNickname(raw)) return { ok: false, reason: 'invalid' };
-    const userId = await this.userIdPromise;
+    const userId = await this.getUserId();
 
     const channel = this.client.channel(CHANNEL, { config: { presence: { key: this.tabId } } });
     this.channel = channel;
@@ -298,7 +291,7 @@ export class SupabaseChatService implements ChatService {
 
   async sendMessage(input: SendInput, onProgress?: (percent: number) => void): Promise<SendResult> {
     try {
-      const userId = await this.userIdPromise;
+      const userId = await this.getUserId();
       let image: Pick<MessageRow, 'image_path' | 'thumb_path' | 'image_width' | 'image_height'> = {
         image_path: null,
         thumb_path: null,
@@ -381,7 +374,7 @@ export class SupabaseChatService implements ChatService {
   }
 
   async toggleReaction(messageId: string, emoji: Emoji, nickname: string) {
-    const userId = await this.userIdPromise;
+    const userId = await this.getUserId();
     const { error } = await this.client.from('reactions').insert({ message_id: messageId, emoji, nickname });
     if (!error) return { ok: true };
     if (error.code !== '23505') return { ok: false };
